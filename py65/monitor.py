@@ -11,7 +11,7 @@ Options:
 -r, --rom <file>     : Load a rom at the top of address space and reset into it
 -g, --goto <address> : Perform a goto command after loading any files
 """
-
+import Image
 import cmd
 import getopt
 import os
@@ -23,6 +23,7 @@ from asyncore import compact_traceback
 from py65.devices.mpu6502 import MPU as NMOS6502
 from py65.devices.mpu65c02 import MPU as CMOS65C02
 from py65.devices.mpu65org16 import MPU as V65Org16
+from py65.devices.tamagotchi import MPU as tamagotchi
 from py65.disassembler import Disassembler
 from py65.assembler import Assembler
 from py65.utils.addressing import AddressParser
@@ -34,7 +35,7 @@ from py65.memory import ObservableMemory
 class Monitor(cmd.Cmd):
 
     Microprocessors = {'6502': NMOS6502, '65C02': CMOS65C02,
-                       '65Org16': V65Org16}
+                       '65Org16': V65Org16,'tamagotchi':tamagotchi}
 
     def __init__(self, mpu_type=NMOS6502, completekey='tab', stdin=None,
                  stdout=None, argv=None):
@@ -82,7 +83,7 @@ class Monitor(cmd.Cmd):
                 if self._get_mpu(value) is None:
                     mpus = self.Microprocessors.keys()
                     mpus.sort()
-                    msg = "Fatal: no such MPU. Available MPUs: %s"
+                    msg = "Fatal: no such MPU! Available MPUs: %s"
                     self._output(msg % ', '.join(mpus))
                     sys.exit(1)
                 cmd = "mpu %s" % value
@@ -428,12 +429,40 @@ class Monitor(cmd.Cmd):
         self._mpu.pc = self._address_parser.number(args)
         brks = [0x00]  # BRK
         self._run(stopcodes=brks)
+    
+    def do_continue(self, args):
+        brks = [0x00]  # BRK
+        self._run(stopcodes=brks)
+   
+    def do_inter(self, args):
+	if (args == "tm1"):
+		args = "d166"
+	if (args == "tbl"):
+		args = "d1a3"
+	if (args == "nmi"):
+		args = "d26b"
+	self._mpu.inter(int(args, 16))
+	self.do_continue(args)
+
+    def do_inter1(self, args):
+
+	self._mpu.inter(int(args, 16))
+	#self.do_continue(args)
 
     def _run(self, stopcodes=[]):
         last_instruct = None
         while last_instruct not in stopcodes:
             self._mpu.step()
             last_instruct = self._mpu.memory[self._mpu.pc]
+    def do_log(self, args):
+	if(self._mpu.loge):
+		print "debug Logging disabled"
+		self.loge = False
+		#self._mpu.log.flush()
+	else:
+		self._mpu.loge = True
+		print "debug Logging enabled"
+	
 
     def help_radix(self):
         self._output("radix [H|D|O|B]")
@@ -467,6 +496,51 @@ class Monitor(cmd.Cmd):
         self._output("~ <number>")
         self._output("Display a number in decimal, hex, octal, and binary.")
 
+    def do_pressa(self, args):
+	self.do_cmem("3012 1e")
+	self.do_inter1("d166")
+	for i in range(0, 10000):
+		self._mpu.step()
+	self.do_inter1("d166")
+	for i in range(0, 10000):
+		self._mpu.step()
+	self.do_cmem("3012 1f")
+	self.do_inter1("d166")
+	for i in range(0, 10000):
+		self._mpu.step()
+	for i in range(0, 10000):
+		self._mpu.step()
+	self.do_inter1("d166")
+	self.do_continue(args)
+
+    def do_kick_nmi(self, args):    
+    	  self.do_cmem("1a7 82")
+          for i in range(0, 500):
+		self._mpu.step()
+    	  self.do_cmem("1a7 82")
+          for i in range(0, 500):
+		self._mpu.step()
+
+
+
+    def do_pressb(self, args):
+	self.do_cmem("3012 1d")
+	self.do_inter1("d166")
+	for i in range(0, 10000):
+		self._mpu.step()
+	self.do_inter1("d166")
+	for i in range(0, 10000):
+		self._mpu.step()
+	self.do_cmem("3012 1f")
+	self.do_inter1("d166")
+	for i in range(0, 10000):
+		self._mpu.step()
+	for i in range(0, 10000):
+		self._mpu.step()
+	self.do_inter1("d166")
+	self.do_continue(args)
+        
+    
     def do_tilde(self, args):
         if args == '':
             return self.help_tilde()
@@ -674,6 +748,9 @@ class Monitor(cmd.Cmd):
             line += more
         self._output(line)
 
+    def do_cmem(self, args):
+        address, value = args.split(' ')
+        self._mpu.memory[int(address, 16)] = int(value, 16)
     def help_add_label(self):
         self._output("add_label <address> <label>")
         self._output("Map a given address to a label.")
@@ -692,6 +769,29 @@ class Monitor(cmd.Cmd):
     def help_show_labels(self):
         self._output("show_labels")
         self._output("Display current label mappings.")
+
+
+
+    def do_lcd(self, args):
+         memory = self._mpu.memory
+
+
+
+         str = memory[0x10c0:0x1180] + memory[0x10b4:0x10c0] + memory[0x10a8:0x10b4] + memory[0x109c:0x10a8] + memory[0x1090:0x109c] + memory[0x1084:0x1090] + memory[0x1078:0x1084]  + memory[0x106c:0x1078] +  memory[0x1060:0x106c] + memory[0x1054:0x1060]+ memory[0x1048:0x1054]+ memory[0x103c:0x1048] + memory[0x1030:0x103c] + memory[0x1024:0x1030] + memory[0x1018:0x1024] + memory[0x100c:0x1018]+ memory[0x1004:0x1011] 
+         print len(str)
+
+	 height = 0x1f
+         width = 0x30
+         s = ""
+         for i in range(0, height*width/4 + 1):
+			for j in range(0, 4):
+				k = str[i] & (0x03 << ((3- j)*2))
+
+				l = ((k) >> ((3-j)*2))
+		
+				s = s + chr(0xFF&(~(l*(255/4))))
+         image = Image.fromstring("L", (width, height), s, "raw", "L")
+         image.show()
 
     def do_show_labels(self, args):
         values = self._address_parser.labels.values()
@@ -745,7 +845,7 @@ def main(args=None):
         c.cmdloop()
     except KeyboardInterrupt:
         c._output('')
-        pass
+        #pass
 
 if __name__ == "__main__":
     main()

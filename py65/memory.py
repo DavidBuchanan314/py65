@@ -1,6 +1,54 @@
 from collections import defaultdict
 
 
+class gpmem:
+	def __setitem__(self, k, value):
+		#print "setting"
+		self.a[k] = value
+		#if (k == 0x3016):
+			#self.log = open("C:\\Users\\Natalie\\Documents\\logmcu.txt", 'a')
+			#self.log.write("port b write")
+			#self.log.close()
+		if (k == 0x32):
+			self.log = open("C:\\Users\\Natalie\\Documents\\logmcu.txt", 'a')
+			self.log.write("im num write")
+			#print "imnum"
+			self.log.close()
+		if (k == 0x3000):
+			f = open("C:\\Users\\Natalie\\Documents\\p" + str(value) + ".bin", 'rb')
+			print "paging " + str(value)
+			t = f.read()
+			for i in range(0x4000, 0xc000):
+				self.a[i] = ord(t[i - 0x4000])
+			#print "paging done" + str(value)	
+		if ((k > 0x1000) & (k < 0x1200)):
+			if (k != (self.plcd + 1)):
+				self.log = open("C:\\Users\\Natalie\\Documents\\logmcu.txt", 'a')
+				self.log.write("LCD write")
+				self.log.close()
+				print "end " + hex(self.plcd)
+				print "OMG LCD " + hex(k)
+			self.plcd = k
+	def __getitem__(self, key):
+
+		if isinstance( key, slice ) :
+			return self.a[key.start:key.stop]
+		#print "getting"
+		#if (key == 0x3012):
+			#self.log = open("C:\\Users\\Natalie\\Documents\\logmcu.txt", 'a')
+			#self.log.write("port a read")
+			#self.log.close()
+		#if (key == 0x3016):
+			#self.log = open("C:\\Users\\Natalie\\Documents\\logmcu.txt", 'a')
+			#self.log.write("port b read")
+			#self.log.close()
+		return self.a[key]
+	
+	def __init__(self, size):
+		print "init!"
+		self.a = size * [0x00]
+		self.plcd = 0	
+
 class ObservableMemory:
     def __init__(self, subject=None, addrWidth=16):
         self.physMask = 0xffff
@@ -9,7 +57,7 @@ class ObservableMemory:
             self.physMask = 0x3ffff
 
         if subject is None:
-            subject = (self.physMask + 1) * [0x00]
+            subject = gpmem(self.physMask + 1)
         self._subject = subject
 
         self._read_subscribers = defaultdict(list)
@@ -27,6 +75,8 @@ class ObservableMemory:
         self._subject[address] = value
 
     def __getitem__(self, address):
+	if isinstance( address, slice ) :
+		return self._subject[address.start:address.stop]
         address &= self.physMask
         callbacks = self._read_subscribers[address]
         final_result = None
